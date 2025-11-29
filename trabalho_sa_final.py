@@ -35,8 +35,7 @@ try:
     df_indices = pd.read_csv('indices.csv')
     df_coanc = pd.read_csv('coancestralidade.csv')
     
-    # Renomeia as colunas para um padrão interno (inglês/português misto, conforme original)
-    # facilita o acesso via .nome_coluna
+    # Renomeia as colunas para um padrão interno
     df_indices = df_indices.rename(columns={
         'Animal': 'AnimalID', 
         'Indice de seleção': 'Index'
@@ -202,7 +201,7 @@ print("="*60)
 
 
 # =============================================================================
-# 5. MODELO: SIMULATED ANNEALING (TÊMPERA SIMULADA)
+# 5. MODELO: SIMULATED ANNEALING 
 # =============================================================================
 
 # Constante de penalização.
@@ -328,7 +327,9 @@ def simulated_annealing(max_uso, temp_ini=1000, temp_fim=0.1, alfa=0.99, iter_te
     
     temp = temp_ini
     historico = [] 
-    t_start = time.time()
+    
+    # MODIFICAÇÃO: Contador de iterações em vez de tempo
+    total_iter = 0
     
     # Loop de Resfriamento
     while temp > temp_fim:
@@ -355,12 +356,14 @@ def simulated_annealing(max_uso, temp_ini=1000, temp_fim=0.1, alfa=0.99, iter_te
                 curr_energy, curr_coanc, curr_idx = new_energy, new_coanc, new_idx
                 
                 # Atualiza o "Best Global"
-                # Critério lexicográfico: Prioriza Menor Coanc. Se empate, Maior Índice.
+                # Critério: Prioriza Menor Coanc. Se empate, Maior Índice.
                 if (curr_coanc < best_coanc) or (abs(curr_coanc - best_coanc) < 1e-9 and curr_idx > best_idx):
                     best_sol, best_coanc, best_idx = curr_sol[:], curr_coanc, curr_idx
         
-        # Registra progresso para plotagem
-        historico.append((time.time() - t_start, best_coanc, best_idx))
+        # MODIFICAÇÃO: Atualiza contador de iterações e salva no histórico
+        total_iter += iter_temp
+        historico.append((total_iter, best_coanc, best_idx))
+        
         temp *= alfa # Resfria
         
     return best_sol, best_coanc, best_idx, historico
@@ -379,7 +382,8 @@ def plotar_graficos(historias, titulo):
     
     # Eixo da esquerda (Azul) -> Coancestralidade
     ax1 = plt.gca()
-    ax1.set_xlabel('Tempo (s)')
+    # MODIFICAÇÃO: Eixo X agora é Iterações
+    ax1.set_xlabel('Iterações')
     ax1.set_ylabel('Coancestralidade (Minimizar)', color='blue')
     ax1.tick_params(axis='y', labelcolor='blue')
     
@@ -394,11 +398,12 @@ def plotar_graficos(historias, titulo):
 
     # Plota todas as execuções (runs) sobrepostas
     for i, hist in enumerate(historias):
-        tempos = [pt[0] for pt in hist]
+        # pt[0] agora contém iterações, não tempo
+        iters = [pt[0] for pt in hist]
         coancs = [pt[1] for pt in hist]
         idxs = [pt[2] for pt in hist]
-        ax1.plot(tempos, coancs, color='blue', alpha=0.3)
-        ax2.plot(tempos, idxs, color='red', alpha=0.3)
+        ax1.plot(iters, coancs, color='blue', alpha=0.3)
+        ax2.plot(iters, idxs, color='red', alpha=0.3)
         
     plt.title(titulo)
     plt.tight_layout()
@@ -406,7 +411,7 @@ def plotar_graficos(historias, titulo):
 
 # Parâmetros de Teste: Diferentes limites de uso por macho
 TESTES_MAX_USO = [12, 18, 20]
-NUM_RUNS = 5 # Executa 5 vezes para cada cenário para obter média
+NUM_RUNS = 1 # Executa 1 vez para cada cenário (aumente se desejar média)
 
 print("\n--- EXECUTANDO TESTES ---")
 
@@ -425,6 +430,26 @@ for max_uso in TESTES_MAX_USO:
             resultados_run.append((coanc, idx))
             historicos_run.append(hist)
             print(f"Ok (Coanc: {coanc:.2f})")
+            
+            # =========================================================
+            # MODIFICAÇÃO: VISUALIZAÇÃO DOS ACASALAMENTOS (TABELA)
+            # =========================================================
+            print(f"\n   >>> ACASALAMENTOS SUGERIDOS (Rodada {r+1}, MaxUso {max_uso}):")
+            print(f"   {'Fêmea':<20} | {'Macho':<20} | {'Índice Estimado':<15}")
+            print("   " + "-"*60)
+            
+            # Itera pela solução e mapeia de volta para os nomes
+            for i_femea, i_macho in enumerate(sol):
+                nome_femea = femeas_nomes[i_femea]
+                nome_macho = machos_nomes[i_macho]
+                
+                # Opcional: Mostra o valor genético desse casal específico
+                valor_casal = matriz_indices[i_femea, i_macho]
+                
+                print(f"   {str(nome_femea):<20} x {str(nome_macho):<20} | {valor_casal:.4f}")
+            print("   " + "-"*60 + "\n")
+            # =========================================================
+
         else:
             print("Falhou (Inviável - Fêmeas demais para poucos machos).")
 
